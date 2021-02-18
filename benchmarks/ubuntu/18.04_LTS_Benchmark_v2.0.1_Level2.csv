@@ -1,0 +1,1472 @@
+﻿section #,recommendation #,title,status,scoring status,description,rationale statement,remediation procedure,audit procedure,impact statement,notes,CIS Controls,CCE-ID,references,,,,,,,,,
+1,,Initial Setup,published,,"Items in this section are advised for all systems, but may be difficult or require extensive preparation after the initial setup of the system.",,,,,,,,,,,,,,,,,
+1.1,,Filesystem Configuration,published,,"Directories that are used for system-wide functions can be further protected by placing them on separate partitions. This provides protection for resource exhaustion and enables the use of mounting options that are applicable to the directory's intended use. Users' data can be stored on separate partitions and have stricter mount options. A user partition is a filesystem that has been established for use by the users and does not contain software for system operations.
+
+The recommendations in this section are easier to perform during initial system installation. If the system is already installed, it is recommended that a full backup be performed before repartitioning the system.
+
+**Note:** If you are repartitioning a system that has already been installed, make sure the data has been copied over to the new partition, unmount it and then remove the data from the directory that was in the old partition. Otherwise it will still consume space in the old partition that will be masked when the new filesystem is mounted. For example, if a system is in single-user mode with no filesystems mounted and the administrator adds a lot of data to the `/tmp` directory, this data will still consume space in `/` once the `/tmp` filesystem is mounted unless it is removed first.",,,,,,,,,,,,,,,,,
+1.1.1,,Disable unused filesystems,published,,"A number of uncommon filesystem types are supported under Linux. Removing support for unneeded filesystem types reduces the local attack surface of the system. If a filesystem type is not needed it should be disabled. Native Linux file systems are designed to ensure that built-in security controls function as expected. Non-native filesystems can lead to unexpected consequences to both the security and functionality of the system and should be used with caution. Many filesystems are created for niche use cases and are not maintained and supported as the operating systems are updated and patched. Users of non-native filesystems should ensure that there is attention and ongoing support for them, especially in light of frequent operating system changes.
+
+Standard network connectivity and Internet access to cloud storage may make the use of non-standard filesystem formats to directly attach heterogeneous devices much less attractive.
+
+**Note**: This should not be considered a comprehensive list of filesystems. You may wish to consider additions to those listed here for your environment.",,,,,,,,,,,,,,,,,
+1.1.1,1.1.1.8,Ensure mounting of FAT filesystems is limited,published,not_scored,"The `FAT` filesystem format is primarily used on older windows systems and portable USB drives or flash modules. It comes in three types `FAT12` , `FAT16` , and `FAT32` all of which are supported by the `vfat` kernel module.","Removing support for unneeded filesystem types reduces the local attack surface of the system. If this filesystem type is not needed, disable it.","Edit or create a file in the /etc/modprobe.d/ directory ending in .conf
+
+Example: `vi /etc/modprobe.d/vfat.conf`
+
+```
+install vfat /bin/true
+```
+
+Run the following command to unload the `vfat` module:
+
+```
+# rmmod vfat
+```","If utilizing UEFI the `FAT` filesystem format is required. If this case, ensure that the `FAT` filesystem is only used where appropriate
+
+Run the following command
+
+```
+grep -E -i '\svfat\s' /etc/fstab
+```
+
+And review that any output is appropriate for your environment
+
+If not utilizing UEFI
+
+Run the following commands and verify the output is as indicated:
+
+```
+# modprobe --showconfig | grep vfat
+
+install vfat /bin/true
+```
+
+```
+# lsmod | grep vfat
+
+```","The `FAT` filesystem format is used by UEFI systems for the EFI boot partition. Disabling the vfat module can prevent boot on UEFI systems.
+
+`FAT` filesystems are often used on portable USB sticks and other flash media which are commonly used to transfer files between workstations, removing VFAT support may prevent the ability to transfer files in this way.",,"TITLE:Establish Secure Configurations CONTROL:v7 5.1 DESCRIPTION:Maintain documented, standard security configuration standards for all authorized operating systems and software.;",,,,,,,,,,,
+1.1,1.1.6,Ensure separate partition exists for /var,published,full,The `/var` directory is used by daemons and other system services to temporarily store dynamic data. Some directories created by these processes may be world-writable.,"Since the `/var` directory may contain world-writable files and directories, there is a risk of resource exhaustion if it is not bound to a separate partition.","For new installations, during installation create a custom partition setup and specify a separate partition for `/var` .
+
+For systems that were previously installed, create a new partition and configure `/etc/fstab` as appropriate.","Run the following command and verify output shows `/var` is mounted:
+
+```
+# mount | grep -E '\s/var\s'
+/dev/xvdg1 on /var type ext4 (rw,relatime,data=ordered)
+```","Resizing filesystems is a common activity in cloud-hosted servers. Separate filesystem partitions may prevent successful resizing, or may require the installation of additional tools solely for the purpose of resizing operations. The use of these additional tools may introduce their own security considerations.","When modifying `/var` it is advisable to bring the system to emergency mode (so auditd is not running), rename the existing directory, mount the new file system, and migrate the data over before returning to multiuser mode.","TITLE:Establish Secure Configurations CONTROL:v7 5.1 DESCRIPTION:Maintain documented, standard security configuration standards for all authorized operating systems and software.;",,"AJ Lewis, ""LVM HOWTO"", http://tldp.org/HOWTO/LVM-HOWTO/",,,,,,,,,
+1.1,1.1.7,Ensure separate partition exists for /var/tmp,published,full,The `/var/tmp` directory is a world-writable directory used for temporary storage by all users and some applications.,"Since the `/var/tmp` directory is intended to be world-writable, there is a risk of resource exhaustion if it is not bound to a separate partition. In addition, making `/var/tmp` its own file system allows an administrator to set the `noexec` option on the mount, making `/var/tmp` useless for an attacker to install executable code. It would also prevent an attacker from establishing a hardlink to a system `setuid` program and wait for it to be updated. Once the program was updated, the hardlink would be broken and the attacker would have his own copy of the program. If the program happened to have a security vulnerability, the attacker could continue to exploit the known flaw.","For new installations, during installation create a custom partition setup and specify a separate partition for `/var/tmp` .
+
+For systems that were previously installed, create a new partition and configure `/etc/fstab` as appropriate.","Run the following command and verify output shows `/var/tmp` is mounted:
+```
+# mount | grep /var/tmp
+ on /var/tmp type ext4 (rw,nosuid,nodev,noexec,relatime)
+```","Resizing filesystems is a common activity in cloud-hosted servers. Separate filesystem partitions may prevent successful resizing, or may require the installation of additional tools solely for the purpose of resizing operations. The use of these additional tools may introduce their own security considerations.",,"TITLE:Establish Secure Configurations CONTROL:v7 5.1 DESCRIPTION:Maintain documented, standard security configuration standards for all authorized operating systems and software.;",,,,,,,,,,,
+1.1,1.1.11,Ensure separate partition exists for /var/log,published,full,The `/var/log` directory is used by system services to store log data .,There are two important reasons to ensure that system logs are stored on a separate partition: protection against resource exhaustion (since logs can grow quite large) and protection of audit data.,"For new installations, during installation create a custom partition setup and specify a separate partition for `/var/log` .
+
+For systems that were previously installed, create a new partition and configure `/etc/fstab` as appropriate.","Run the following command and verify output shows `/var/log` is mounted:
+```
+# mount | grep /var/log
+/dev/xvdh1 on /var/log type ext4 (rw,relatime,data=ordered)
+```","Resizing filesystems is a common activity in cloud-hosted servers. Separate filesystem partitions may prevent successful resizing, or may require the installation of additional tools solely for the purpose of resizing operations. The use of these additional tools may introduce their own security considerations.","When modifying `/var/log` it is advisable to bring the system to emergency mode (so auditd is not running), rename the existing directory, mount the new file system, and migrate the data over before returning to multiuser mode.",TITLE:Ensure adequate storage for logs CONTROL:v7 6.4 DESCRIPTION:Ensure that all systems that store logs have adequate storage space for the logs generated.;,,"AJ Lewis, ""LVM HOWTO"", http://tldp.org/HOWTO/LVM-HOWTO/",,,,,,,,,
+1.1,1.1.12,Ensure separate partition exists for /var/log/audit,published,full,"The auditing daemon, `auditd` , stores log data in the `/var/log/audit` directory.","There are two important reasons to ensure that data gathered by `auditd` is stored on a separate partition: protection against resource exhaustion (since the `audit.log` file can grow quite large) and protection of audit data. The audit daemon calculates how much free space is left and performs actions based on the results. If other processes (such as `syslog` ) consume space in the same partition as `auditd` , it may not perform as desired.","For new installations, during installation create a custom partition setup and specify a separate partition for `/var/log/audit` .
+
+For systems that were previously installed, create a new partition and configure `/etc/fstab` as appropriate.","Run the following command and verify output shows `/var/log/audit` is mounted:
+```
+# mount | grep /var/log/audit
+/dev/xvdi1 on /var/log/audit type ext4 (rw,relatime,data=ordered)
+```","Resizing filesystems is a common activity in cloud-hosted servers. Separate filesystem partitions may prevent successful resizing, or may require the installation of additional tools solely for the purpose of resizing operations. The use of these additional tools may introduce their own security considerations.","When modifying `/var/log/audit` it is advisable to bring the system to emergency mode (so auditd is not running), rename the existing directory, mount the new file system, and migrate the data over before returning to multiuser mode.",TITLE:Ensure adequate storage for logs CONTROL:v7 6.4 DESCRIPTION:Ensure that all systems that store logs have adequate storage space for the logs generated.;,,"AJ Lewis, ""LVM HOWTO"", http://tldp.org/HOWTO/LVM-HOWTO/",,,,,,,,,
+1.1,1.1.13,Ensure separate partition exists for /home,published,full,The `/home` directory is used to support disk storage needs of local users.,"If the system is intended to support local users, create a separate partition for the `/home` directory to protect against resource exhaustion and restrict the type of files that can be stored under `/home` .","For new installations, during installation create a custom partition setup and specify a separate partition for `/home` .
+
+For systems that were previously installed, create a new partition and configure `/etc/fstab` as appropriate.","Run the following command and verify output shows `/home` is mounted:
+```
+# mount | grep /home
+/dev/xvdf1 on /home type ext4 (rw,nodev,relatime,data=ordered)
+```","Resizing filesystems is a common activity in cloud-hosted servers. Separate filesystem partitions may prevent successful resizing, or may require the installation of additional tools solely for the purpose of resizing operations. The use of these additional tools may introduce their own security considerations.",,"TITLE:Establish Secure Configurations CONTROL:v7 5.1 DESCRIPTION:Maintain documented, standard security configuration standards for all authorized operating systems and software.;",,"AJ Lewis, ""LVM HOWTO"", http://tldp.org/HOWTO/LVM-HOWTO/",,,,,,,,,
+1.2,,Configure Software Updates,published,,"Ubuntu Linux use apt to install and update software packages. Patch management procedures may vary widely between enterprises. Large enterprises may choose to install a local updates server that can be used in place of their distributions servers, whereas a single deployment of a system may prefer to get updates directly. Updates can be performed automatically or manually, depending on the site's policy for patch management. Many large enterprises prefer to test patches on a non-production system before rolling out to production.
+
+For the purpose of this benchmark, the requirement is to ensure that a patch management system is configured and maintained. The specifics on patch update procedures are left to the organization.",,,,,,,,,,,,,,,,,
+1.3,,Configure sudo,published,,"sudo allows a permitted user to execute a command as the superuser or another user, as specified by the security policy. The invoking user's real (not effective) user ID is used to determine the user name with which to query the security policy.
+
+sudo supports a plugin architecture for security policies and input/output logging. Third parties can develop and distribute their own policy and I/O logging plugins to work seamlessly with the sudo front end. The default security policy is sudoers, which is configured via the file /etc/sudoers.",,,,,,,,,,,,,,,,,
+1.4,,Filesystem Integrity Checking,published,,"AIDE is a file integrity checking tool, similar in nature to Tripwire. While it cannot prevent intrusions, it can detect unauthorized changes to configuration files by alerting when the files are changed. When setting up AIDE, decide internally what the site policy will be concerning integrity checking. Review the AIDE quick start guide and AIDE documentation before proceeding.",,,,,,,,,,,,,,,,,
+1.5,,Secure Boot Settings,published,,The recommendations in this section focus on securing the bootloader and settings involved in the boot process directly.,,,,,,,,,,,,,,,,,
+1.6,,Additional Process Hardening,published,,,,,,,,,,,,,,,,,,,
+1.7,,Mandatory Access Control,published,,"Mandatory Access Control (MAC) provides an additional layer of access restrictions to processes on top of the base Discretionary Access Controls. By restricting how processes can access files and resources on a system the potential impact from vulnerabilities in the processes can be reduced.
+
+**Impact:** Mandatory Access Control limits the capabilities of applications and daemons on a system, while this can prevent unauthorized access the configuration of MAC can be complex and difficult to implement correctly preventing legitimate access from occurring.
+
+**Note:** Apparmor is the default MAC provided with Ubuntu systems.
+
+**Note:** Additional Mandatory Access Control systems to include SELinux exist. If a different Mandatory Access Control systems is used, please follow it's vendors guidance for proper implementation in place of the guidance provided in this section",,,,,,,,,,,,,,,,,
+1.7.1,,Configure AppArmor,published,,"AppArmor provides a Mandatory Access Control (MAC) system that greatly augments the default Discretionary Access Control (DAC) model. Under AppArmor MAC rules are applied by file paths instead of by security contexts as in other MAC systems. As such it does not require support in the filesystem and can be applied to network mounted filesystems for example. AppArmor security policies define what system resources applications can access and what privileges they can do so with. This automatically limits the damage that the software can do to files accessible by the calling user. The user does not need to take any action to gain this benefit. For an action to occur, both the traditional DAC permissions must be satisfied as well as the AppArmor MAC rules. The action will not be allowed if either one of these models does not permit the action. In this way, AppArmor rules can only make a system's permissions more restrictive and secure.
+
+**References:**
+
+1. AppArmor Documentation: [http://wiki.apparmor.net/index.php/Documentation](http://wiki.apparmor.net/index.php/Documentation)
+2. Ubuntu AppArmor Documentation: [https://help.ubuntu.com/community/AppArmor](https://help.ubuntu.com/community/AppArmor)
+3. SUSE AppArmor Documentation: [https://www.suse.com/documentation/apparmor/](https://www.suse.com/documentation/apparmor/)",,,,,,,,,,,,,,,,,
+1.7.1,1.7.1.4,Ensure all AppArmor Profiles are enforcing,published,full,AppArmor profiles define what resources applications are able to access.,"Security configuration requirements vary from site to site. Some sites may mandate a policy that is stricter than the default policy, which is perfectly acceptable. This item is intended to ensure that any policies that exist on the system are activated.","Run the following command to set all profiles to enforce mode:
+
+```
+# aa-enforce /etc/apparmor.d/*
+```
+
+Any unconfined processes may need to have a profile created or activated for them and then be restarted.","Run the following command and verify that profiles are loaded, no profiles are in complain mode, and no processes are unconfined:
+
+```
+# apparmor_status
+apparmor module is loaded.
+17 profiles are loaded.
+17 profiles are in enforce mode.
+ /bin/ping
+ /sbin/klogd
+ /sbin/syslog-ng
+ /sbin/syslogd
+ /usr/lib/PolicyKit/polkit-explicit-grant-helper
+ /usr/lib/PolicyKit/polkit-grant-helper
+ /usr/lib/PolicyKit/polkit-grant-helper-pam
+ /usr/lib/PolicyKit/polkit-read-auth-helper
+ /usr/lib/PolicyKit/polkit-resolve-exe-helper
+ /usr/lib/PolicyKit/polkit-revoke-helper
+ /usr/lib/PolicyKit/polkitd
+ /usr/sbin/avahi-daemon
+ /usr/sbin/identd
+ /usr/sbin/mdnsd
+ /usr/sbin/nscd
+ /usr/sbin/ntpd
+ /usr/sbin/traceroute
+0 profiles are in complain mode.
+1 processes have profiles defined.
+1 processes are in enforce mode :
+ /usr/sbin/nscd (3979)
+0 processes are in complain mode.
+0 processes are unconfined but have a profile defined.
+```",,,"TITLE:Protect Information through Access Control Lists CONTROL:v7 14.6 DESCRIPTION:Protect all information stored on systems with file system, network share, claims, application, or database specific access control lists. These controls will enforce the principle that only authorized individuals should have access to the information based on their need to access the information as a part of their responsibilities.;",,,,,,,,,,,
+1.8,,Warning Banners,published,,"Presenting a warning message prior to the normal user login may assist in the prosecution of trespassers on the computer system. Changing some of these login banners also has the side effect of hiding OS version information and other detailed system information from attackers attempting to target specific exploits at a system.
+
+Guidelines published by the US Department of Defense require that warning messages include at least the name of the organization that owns the system, the fact that the system is subject to monitoring and that such monitoring is in compliance with local statutes, and that use of the system implies consent to such monitoring. It is important that the organization's legal counsel review the content of all messages before any system modifications are made, as these warning messages are inherently site-specific. More information (including citations of relevant case law) can be found at [http://www.justice.gov/criminal/cybercrime/ ](http://www.justice.gov/criminal/cybercrime/ )
+
+**Note:** The text provided in the remediation actions for these items is intended as an example only. Please edit to include the specific text for your organization as approved by your legal department.",,,,,,,,,,,,,,,,,
+1.8.1,,Command Line Warning Banners,published,,"The `/etc/motd`, `/etc/issue`, and `/etc/issue.net` files govern warning banners for standard command line logins for both local and remote users.",,,,,,,,,,,,,,,,,
+2,,Services,published,,"While applying system updates and patches helps correct known vulnerabilities, one of the best ways to protect the system against as yet unreported vulnerabilities is to disable all services that are not required for normal system operation. This prevents the exploitation of vulnerabilities discovered at a later date. If a service is not enabled, it cannot be exploited. The actions in this section of the document provide guidance on some services which can be safely disabled and under which circumstances, greatly reducing the number of possible threats to the resulting system. Additionally some services which should remain enabled but with secure configuration are covered as well as insecure service clients.",,,,,,,,,,,,,,,,,
+2.1,,inetd Services,published,,inetd is a super-server daemon that provides internet services and passes connections to configured services. While not commonly used inetd and any unneeded inetd based services should be disabled if possible.,,,,,,,,,,,,,,,,,
+2.2,,Special Purpose Services,published,,"This section describes services that are installed on systems that specifically need to run these services. If any of these services are not required, it is recommended that they be disabled or deleted from the system to reduce the potential attack surface.",,,,,,,,,,,,,,,,,
+2.2.1,,Time Synchronization,published,,"It is recommended that physical systems and virtual guests lacking direct access to the physical host's clock be configured to synchronize their time using a service such as systemd-timesyncd, chrony, or ntp.
+
+If access to a physical host's clock is available and configured according to site policy, this section can be skipped.",,,,,,,,,,,,,,,,,
+2.3,,Service Clients,published,,"A number of insecure services exist. While disabling the servers prevents a local attack against these services, it is advised to remove their clients unless they are required.
+
+**Note**: This should not be considered a comprehensive list of insecure service clients. You may wish to consider additions to those listed here for your environment.",,,,,,,,,,,,,,,,,
+3,,Network Configuration,published,,"This section provides guidance on for securing the network configuration of the system through kernel parameters, access list control, and firewall settings.",,,,,,,,,,,,,,,,,
+3.1,,Network Parameters (Host Only),published,,"The following network parameters are intended for use if the system is to act as a host only. A system is considered host only if the system has a single interface, or has multiple interfaces but will not be configured as a router.",,,,,,,,,,,,,,,,,
+3.2,,Network Parameters (Host and Router),published,,The following network parameters are intended for use on both host only and router systems. A system acts as a router if it has at least two interfaces and is configured to perform routing functions.,,,,,,,,,,,,,,,,,
+3.3,,TCP Wrappers,published,,,,,,,,,,,,,,,,,,,
+3.4,,Uncommon Network Protocols,published,,"The Linux kernel modules support several network protocols that are not commonly used. If these protocols are not needed, it is recommended that they be disabled in the kernel.
+
+**Note:** This should not be considered a comprehensive list of uncommon network protocols, you may wish to consider additions to those listed here for your environment.",,,,,,,,,,,,,,,,,
+3.4,3.4.1,Ensure DCCP is disabled,published,full,"The Datagram Congestion Control Protocol (DCCP) is a transport layer protocol that supports streaming media and telephony. DCCP provides a way to gain access to congestion control, without having to do it at the application layer, but does not provide in-sequence delivery.","If the protocol is not required, it is recommended that the drivers not be installed to reduce the potential attack surface.","Edit or create a file in the `/etc/modprobe.d/` directory ending in .conf
+
+Example: `vi /etc/modprobe.d/dccp.conf`
+
+and add the following line:
+
+```
+install dccp /bin/true
+```","Run the following commands and verify the output is as indicated:
+
+```
+# modprobe -n -v dccp
+
+install /bin/true
+```
+
+```
+# lsmod | grep dccp
+
+```",,,"TITLE:Ensure Only Approved Ports, Protocols and Services Are Running CONTROL:v7 9.2 DESCRIPTION:Ensure that only network ports, protocols, and services listening on a system with validated business needs, are running on each system.;",,,,,,,,,,,
+3.4,3.4.2,Ensure SCTP is disabled,published,full,"The Stream Control Transmission Protocol (SCTP) is a transport layer protocol used to support message oriented communication, with several streams of messages in one connection. It serves a similar function as TCP and UDP, incorporating features of both. It is message-oriented like UDP, and ensures reliable in-sequence transport of messages with congestion control like TCP.","If the protocol is not being used, it is recommended that kernel module not be loaded, disabling the service to reduce the potential attack surface.","Edit or create a file in the `/etc/modprobe.d/` directory ending in .conf
+
+Example: `vi /etc/modprobe.d/sctp.conf`
+
+and add the following line:
+
+```
+install sctp /bin/true
+```","Run the following commands and verify the output is as indicated:
+
+```
+# modprobe -n -v sctp
+
+install /bin/true
+```
+
+```
+# lsmod | grep sctp
+
+```",,,"TITLE:Ensure Only Approved Ports, Protocols and Services Are Running CONTROL:v7 9.2 DESCRIPTION:Ensure that only network ports, protocols, and services listening on a system with validated business needs, are running on each system.;",,,,,,,,,,,
+3.4,3.4.3,Ensure RDS is disabled,published,full,"The Reliable Datagram Sockets (RDS) protocol is a transport layer protocol designed to provide low-latency, high-bandwidth communications between cluster nodes. It was developed by the Oracle Corporation.","If the protocol is not being used, it is recommended that kernel module not be loaded, disabling the service to reduce the potential attack surface.","Edit or create a file in the `/etc/modprobe.d/` directory ending in .conf 
+
+Example: `vi /etc/modprobe.d/rds.conf`
+
+and add the following line:
+
+```
+install rds /bin/true
+```","Run the following commands and verify the output is as indicated:
+
+```
+# modprobe -n -v rds
+
+install /bin/true
+```
+
+```
+# lsmod | grep rds
+
+```",,,"TITLE:Ensure Only Approved Ports, Protocols and Services Are Running CONTROL:v7 9.2 DESCRIPTION:Ensure that only network ports, protocols, and services listening on a system with validated business needs, are running on each system.;",,,,,,,,,,,
+3.4,3.4.4,Ensure TIPC is disabled,published,full,The Transparent Inter-Process Communication (TIPC) protocol is designed to provide communication between cluster nodes.,"If the protocol is not being used, it is recommended that kernel module not be loaded, disabling the service to reduce the potential attack surface.","Edit or create a file in the `/etc/modprobe.d/` directory ending in .conf 
+
+Example: `vi /etc/modprobe.d/tipc.conf`
+
+and add the following line:
+
+```
+install tipc /bin/true
+```","Run the following commands and verify the output is as indicated:
+
+```
+# modprobe -n -v tipc
+
+install /bin/true
+```
+
+```
+# lsmod | grep tipc
+
+```",,,"TITLE:Ensure Only Approved Ports, Protocols and Services Are Running CONTROL:v7 9.2 DESCRIPTION:Ensure that only network ports, protocols, and services listening on a system with validated business needs, are running on each system.;",,,,,,,,,,,
+3.5,,Firewall Configuration,published,,"A Host based firewall Provides defense against external and internal threats by refusing unauthorized connections, to stop intrusion and provide a strong method of access control policy.
+
+this section is intended only to ensure the resulting firewall rules are in place, not how they are configured",,,,,,,,,,,,,,,,,
+3.5.1,,Ensure Firewall software is installed,published,,"In order to configure Firewall protection for you system, a Firewall software package needs to be installed",,,,,,,,,,,,,,,,,
+3.5.2,,Configure UncomplicatedFirewall,published,,"UncomplicatedFirewall (ufw) is a frontend for iptables. ufw provides a framework for managing netfilter, as well as a command-line interface for manipulating the firewall.",,,,,,,,,,,,,,,,,
+3.5.3,,Configure nftables,published,,"nftables is a subsystem of the Linux kernel providing filtering and classification of network packets/datagrams/frames and is the successor to iptables. The biggest change with the successor nftables is its simplicity. With iptables, we have to configure every single rule and use the syntax which can be compared with normal commands. With nftables, the simpler syntax, much like BPF (Berkely Packet Filter) means shorter lines and less repetition. Support for nftables should also be compiled into the kernel, together with the related nftables modules. Please ensure that your kernel supports nf_tables before choosing this option.
+
+Note: This section broadly assumes starting with an empty nftables firewall ruleset (established by flushing the rules with nft flush ruleset). Remediation steps included onlyaffect the live system, you will also need to configure your default firewall configuration to apply on boot. Configuration of a live systems firewall directly over a remote connection will often result in being locked out. It is advised to have a known good firewall configuration set to run on boot and to configure an entire firewall structure in a script that is then run and tested before saving to boot.
+
+The following will implement the firewall rules of this section and open ICMP, IGMP, and port 22(ssh) from anywhere. Opening the ports for ICMP, IGMP, and port 22(ssh) needs to be updated in accordence with local site policy. Allow port 22(ssh) needs to be updated to only allow systems requiring ssh connectivity to connect, as per site policy.
+
+Save the script bellow as `/etc/nftables/nftables.rules` 
+
+```
+#!/sbin/nft -f
+
+# This nftables.rules config should be saved as /etc/nftables/nftables.rules
+
+# flush nftables rulesset
+flush ruleset
+
+# Load nftables ruleset
+
+# nftables config with inet table named filter
+
+table inet filter {
+ # Base chain for input hook named input (Filters inbound network packets)
+ chain input {
+ type filter hook input priority 0; policy drop;
+
+ # Ensure loopback traffic is configured
+ iif ""lo"" accept
+ ip saddr 127.0.0.0/8 counter packets 0 bytes 0 drop
+ ip6 saddr ::1 counter packets 0 bytes 0 drop
+
+ # Ensure established connections are configured
+ ip protocol tcp ct state established accept
+ ip protocol udp ct state established accept
+ ip protocol icmp ct state established accept
+
+ # Accept port 22(SSH) traffic from anywhere
+ tcp dport ssh accept
+
+ # Accept ICMP and IGMP from anywhere
+ icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, mld-listener-query, mld-listener-report, mld-listener-done, nd-
+router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, ind-neighbor-solicit, ind-neighbor-advert, mld2-listener-report } accept
+ icmp type { destination-unreachable, router-advertisement, router-solicitation, time-exceeded, parameter-problem } accept
+ ip protocol igmp accept
+ }
+
+ # Base chain for hook forward named forward (Filters forwarded network packets)
+ chain forward {
+ type filter hook forward priority 0; policy drop;
+ }
+
+ # Base chain for hook output named output (Filters outbount network packets)
+ chain output {
+ type filter hook output priority 0; policy drop;
+ # Ensure outbound and established connections are configured
+ ip protocol tcp ct state established,related,new accept
+ ip protocol udp ct state established,related,new accept
+ ip protocol icmp ct state established,related,new accept
+ }
+}
+```
+
+Run the following command to load the file into nftables
+
+```
+# nft -f /etc/nftables/nftables.rules
+```
+
+All changes in the nftables subsections are temporary. 
+
+To make these changes permanent:
+
+Run the following command to create the nftables.rules file
+
+```
+nft list ruleset > /etc/nftables/nftables.rules
+```
+
+Add the following line to `/etc/sysconfig/nftables.conf`
+
+```
+include ""/etc/nftables/nftables.rules""
+```",,,,,,,,,,,,,,,,,
+3.5.4,,Configure iptables,published,,"IPtables is an application that allows a system administrator to configure the IPv4 and IPv6 tables, chains and rules provided by the Linux kernel firewall. While several methods of configuration exist this section is intended only to ensure the resulting IPtables rules are in place, not how they are configured. If IPv6 is in use in your environment, similar settings should be applied to the IP6tables as well.",,,,,,,,,,,,,,,,,
+3.5.4.1,,Configure IPv4 iptables,published,,"Iptables is used to set up, maintain, and inspect the tables of IP packet filter rules in the Linux kernel. Several different tables may be defined. Each table contains a number of built-in chains and may also contain user-defined chains.
+
+Each chain is a list of rules which can match a set of packets. Each rule specifies what to do with a packet that matches. This is called a 'target', which may be a jump to a user-defined chain in the same table.
+
+Note: This section broadly assumes starting with an empty IPtables firewall ruleset (established by flushing the rules with iptables -F). Remediation steps included only affect the live system, you will also need to configure your default firewall configuration to apply on boot. Configuration of a live systems firewall directly over a remote connection will often result in being locked out. It is advised to have a known good firewall configuration set to run on boot and to configure an entire firewall structure in a script that is then run and tested before saving to boot. The following script will implement the firewall rules of this section and open port 22(ssh) from anywhere:
+
+```
+#!/bin/bash
+
+# Flush IPtables rules
+iptables -F
+
+# Ensure default deny firewall policy
+iptables -P INPUT DROP
+iptables -P OUTPUT DROP
+iptables -P FORWARD DROP
+
+# Ensure loopback traffic is configured
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -A INPUT -s 127.0.0.0/8 -j DROP
+
+# Ensure outbound and established connections are configured
+iptables -A OUTPUT -p tcp -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -p udp -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -p icmp -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A INPUT -p tcp -m state --state ESTABLISHED -j ACCEPT
+iptables -A INPUT -p udp -m state --state ESTABLISHED -j ACCEPT
+iptables -A INPUT -p icmp -m state --state ESTABLISHED -j ACCEPT
+
+# Open inbound ssh(tcp port 22) connections
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -j ACCEPT
+```",,,,,,,,,,,,,,,,,
+3.5.4.2,,Configure IPv6  ip6tables,published,,"Ip6tables is used to set up, maintain, and inspect the tables of IPv6 packet filter rules in the Linux kernel. Several different tables may be defined. Each table contains a number of built-in chains and may also contain user-defined chains.
+Each chain is a list of rules which can match a set of packets. Each rule specifies what to do with a packet that matches. This is called a `target', which may be a jump to a user-defined chain in the same table. 
+
+If IPv6 in enabled on the system, the ip6tables should be configured.
+
+Note: This section broadly assumes starting with an empty ip6tables firewall ruleset (established by flushing the rules with ip6tables -F). Remediation steps included only affect the live system, you will also need to configure your default firewall configuration to apply on boot. Configuration of a live systems firewall directly over a remote connection will often result in being locked out. It is advised to have a known good firewall configuration set to run on boot and to configure an entire firewall structure in a script that is then run and tested before saving to boot. The following script will implement the firewall rules of this section and open port 22(ssh) from anywhere:
+
+```
+#!/bin/bash
+
+# Flush ip6tables rules
+ip6tables -F
+
+# Ensure default deny firewall policy
+ip6tables -P INPUT DROP
+ip6tables -P OUTPUT DROP
+ip6tables -P FORWARD DROP
+
+# Ensure loopback traffic is configured
+ip6tables -A INPUT -i lo -j ACCEPT
+ip6tables -A OUTPUT -o lo -j ACCEPT
+ip6tables -A INPUT -s ::1 -j DROP
+
+# Ensure outbound and established connections are configured
+ip6tables -A OUTPUT -p tcp -m state --state NEW,ESTABLISHED -j ACCEPT
+ip6tables -A OUTPUT -p udp -m state --state NEW,ESTABLISHED -j ACCEPT
+ip6tables -A OUTPUT -p icmp -m state --state NEW,ESTABLISHED -j ACCEPT
+ip6tables -A INPUT -p tcp -m state --state ESTABLISHED -j ACCEPT
+ip6tables -A INPUT -p udp -m state --state ESTABLISHED -j ACCEPT
+ip6tables -A INPUT -p icmp -m state --state ESTABLISHED -j ACCEPT
+
+# Open inbound ssh(tcp port 22) connections
+ip6tables -A INPUT -p tcp --dport 22 -m state --state NEW -j ACCEPT
+```",,,,,,,,,,,,,,,,,
+3,3.7,Disable IPv6,published,not_scored,"Although IPv6 has many advantages over IPv4, not all organizations have IPv6 or dual stack configurations implemented.","If IPv6 or dual stack is not to be used, it is recommended that IPv6 be disabled to reduce the attack surface of the system.","Edit `/etc/default/grub` and add `ipv6.disable=1` to the `GRUB_CMDLINE_LINUX` parameters:
+
+```
+GRUB_CMDLINE_LINUX=""ipv6.disable=1""
+```
+
+Run the following command to update the `grub2` configuration:
+
+```
+# update-grub
+```","Depending or your distribution, run the appropriate following command and verify no lines should be returned.
+
+```
+# grep ""^\s*linux"" /boot/grub/grub.cfg | grep -v ""ipv6.disable=1""
+```",,,"TITLE:Secure Configurations for Hardware and Software on Mobile Devices, Laptops, Workstations, and Servers CONTROL:v6 3 DESCRIPTION:Secure Configurations for Hardware and Software on Mobile Devices, Laptops, Workstations, and Servers;TITLE:Secure Configurations for Network Devices such as Firewalls, Routers and switches CONTROL:v6 11 DESCRIPTION:Secure Configurations for Network Devices such as Firewalls, Routers and switches;TITLE:Limit Open Ports, Protocols, and Services CONTROL:v6 9.1 DESCRIPTION:Ensure that only ports, protocols, and services with validated business needs are running on each system.;TITLE:Apply Host-based Firewalls or Port Filtering CONTROL:v7 9.4 DESCRIPTION:Apply host-based firewalls or port filtering tools on end systems, with a default-deny rule that drops all traffic except those services and ports that are explicitly allowed.;",,,,,,,,,,,
+4,,Logging and Auditing,published,,"The items in this section describe how to configure logging, log monitoring, and auditing, using tools included in most distributions.
+
+It is recommended that `rsyslog` be used for logging (with `logwatch` providing summarization) and `auditd` be used for auditing (with `aureport` providing summarization) to automatically monitor logs for intrusion attempts and other suspicious system behavior.
+
+In addition to the local log files created by the steps in this section, it is also recommended that sites collect copies of their system logs on a secure, centralized log server via an encrypted connection. Not only does centralized logging help sites correlate events that may be occurring on multiple systems, but having a second copy of the system log information may be critical after a system compromise where the attacker has modified the local log files on the affected system(s). If a log correlation system is deployed, configure it to process the logs described in this section.
+
+Because it is often necessary to correlate log information from many different systems (particularly after a security incident) it is recommended that the time be synchronized among systems and devices connected to the local network.
+
+It is important that all logs described in this section be monitored on a regular basis and correlated to determine trends. A seemingly innocuous entry in one log could be more significant when compared to an entry in another log.
+
+**Note on log file permissions:** 
+There really isn't a ""one size fits all"" solution to the permissions on log files. Many sites utilize group permissions so that administrators who are in a defined security group, such as ""wheel"" do not have to elevate privileges to root in order to read log files. Also, if a third party log aggregation tool is used, it may need to have group permissions to read the log files, which is preferable to having it run setuid to root. Therefore, there are two remediation and audit steps for log file permissions. One is for systems that do not have a secured group method implemented that only permits root to read the log files (`root:root 600`). The other is for sites that do have such a setup and are designated as `root:securegrp 640` where `securegrp` is the defined security group (in some cases `wheel`).",,,,,,,,,,,,,,,,,
+4.1,,Configure System Accounting (auditd),published,,"System auditing, through `auditd`, allows system administrators to monitor their systems such that they can detect unauthorized access or modification of data. By default, auditd will audit SELinux AVC denials, system logins, account modifications, and authentication events. Events will be logged to `/var/log/audit/audit.log`. The recording of these events will use a modest amount of disk space on a system. If significantly more events are captured, additional on system or off system storage may need to be allocated.
+
+The recommendations in this section implement an audit policy that produces large quantities of logged data. In some environments it can be challenging to store or process these logs and as such they are marked as Level 2 for both Servers and Workstations. **Note:** For 64 bit systems that have arch as a rule parameter, you will need two rules: one for 64 bit and one for 32 bit systems. For 32 bit systems, only one rule is needed.
+
+**Note:** Several recommendations in this section filter based off of `auid>=1000` for unprivileged non-system users. Some distributions split at `UID 500` instead, consult your documentation and/or the `UID_MIN` setting in `/etc/login.defs` to determine which is appropriate for you.
+
+**Note:** Once all audit rules have been added to a file or files in the `/etc/audit/rules.d/` directory, the auditd service must be re-started, or the system rebooted, for the new rules to be included.",,,,,,,,,,,,,,,,,
+4.1.1,,Ensure auditing is enabled,published,,The capturing of system events provides system administrators with information to allow them to determine if unauthorized access to their system is occurring.,,,,,,,,,,,,,,,,,
+4.1.1,4.1.1.1,Ensure auditd is installed,published,full,auditd is the userspace component to the Linux Auditing System. It's responsible for writing audit records to the disk,The capturing of system events provides system administrators with information to allow them to determine if unauthorized access to their system is occurring.,"Run the following command to Install auditd
+
+```
+# apt install auditd audispd-plugins
+```","Run the following command and verify auditd is installed:
+
+```
+# dpkg -s auditd audispd-plugins
+```",,,"TITLE:Activate audit logging CONTROL:v7 6.2 DESCRIPTION:Ensure that local logging has been enabled on all systems and networking devices.;TITLE:Enable Detailed Logging CONTROL:v7 6.3 DESCRIPTION:Enable system logging to include detailed information such as an event source, date, user, timestamp, source addresses, destination addresses, and other useful elements.;",,,,,,,,,,,
+4.1.1,4.1.1.2,Ensure auditd service is enabled,published,full,Enable and start the `auditd` daemon to record system events.,The capturing of system events provides system administrators with information to allow them to determine if unauthorized access to their system is occurring.,"Run the following command to enable `auditd` :
+
+```
+# systemctl --now enable auditd
+```","Run the following command to verify `auditd` is enabled:
+
+```
+# systemctl is-enabled auditd
+
+enabled
+```
+
+Verify result is ""enabled"".",,Additional methods of enabling a service exist. Consult your distribution documentation for appropriate methods.,"TITLE:Activate audit logging CONTROL:v7 6.2 DESCRIPTION:Ensure that local logging has been enabled on all systems and networking devices.;TITLE:Enable Detailed Logging CONTROL:v7 6.3 DESCRIPTION:Enable system logging to include detailed information such as an event source, date, user, timestamp, source addresses, destination addresses, and other useful elements.;",,,,,,,,,,,
+4.1.1,4.1.1.3,Ensure auditing for processes that start prior to auditd is enabled,published,full,Configure `grub` so that processes that are capable of being audited can be audited even if they start up prior to `auditd` startup.,"Audit events need to be captured on processes that start up prior to `auditd` , so that potential malicious activity cannot go undetected.","Edit `/etc/default/grub` and add audit=1 to GRUB_CMDLINE_LINUX:
+
+```
+GRUB_CMDLINE_LINUX=""audit=1""
+```
+
+Run the following command to update the `grub2` configuration:
+
+```
+# update-grub
+```","Run the following command and verify that each linux line has the `audit=1` parameter set:
+
+```
+# grep ""^\s*linux"" /boot/grub/grub.cfg | grep -v ""audit=1"" | grep -v '/boot/memtest86+.bin'
+```
+
+Nothing should be returned",,"This recommendation is designed around the grub bootloader, if LILO or another bootloader is in use in your environment enact equivalent settings.
+
+Replace `/boot/grub/grub.cfg` with the appropriate grub configuration file for your environment.","TITLE:Activate audit logging CONTROL:v7 6.2 DESCRIPTION:Ensure that local logging has been enabled on all systems and networking devices.;TITLE:Enable Detailed Logging CONTROL:v7 6.3 DESCRIPTION:Enable system logging to include detailed information such as an event source, date, user, timestamp, source addresses, destination addresses, and other useful elements.;",,,,,,,,,,,
+4.1.1,4.1.1.4,Ensure audit_backlog_limit is sufficient,published,full,The backlog limit has a default setting of 64,"during boot if audit=1, then the backlog will hold 64 records. If more that 64 records are created during boot, auditd records will be lost and potential malicious activity could go undetected.","Edit /etc/default/grub and add `audit_backlog_limit=` to GRUB_CMDLINE_LINUX:
+
+**Example:**
+
+```
+GRUB_CMDLINE_LINUX=""audit_backlog_limit=8192""
+```
+
+Run the following command to update the grub2 configuration:
+
+```
+# update-grub
+```","Run the following commands and verify the `audit_backlog_limit=` parameter is set to an appropriate size for your organization
+
+```
+# grep ""^\s*linux"" /boot/grub/grub.cfg | grep -v ""audit_backlog_limit=""
+```
+
+Nothing should be returned
+
+```
+# grep ""audit_backlog_limit="" /boot/grub/grub.cfg
+```
+
+Ensure the the returned value complies with local site policy
+
+**Recommended that this value be `8192` or larger.**",,,"TITLE:Activate audit logging CONTROL:v7 6.2 DESCRIPTION:Ensure that local logging has been enabled on all systems and networking devices.;TITLE:Enable Detailed Logging CONTROL:v7 6.3 DESCRIPTION:Enable system logging to include detailed information such as an event source, date, user, timestamp, source addresses, destination addresses, and other useful elements.;",,,,,,,,,,,
+4.1.2,,Configure Data Retention,published,,"When auditing, it is important to carefully configure the storage requirements for audit logs. By default, auditd will max out the log files at 5MB and retain only 4 copies of them. Older versions will be deleted. It is possible on a system that the 20 MBs of audit logs may fill up the system causing loss of audit data. While the recommendations here provide guidance, check your site policy for audit storage requirements.",,,,,,,,,,,,,,,,,
+4.1.2,4.1.2.1,Ensure audit log storage size is configured,published,full,"Configure the maximum size of the audit log file. Once the log reaches the maximum size, it will be rotated and a new log file will be started.",It is important that an appropriate size is determined for log files so that they do not impact the system and audit data is not lost.,"Set the following parameter in `/etc/audit/auditd.conf` in accordance with site policy:
+
+```
+max_log_file = 
+```","Run the following command and ensure output is in compliance with site policy:
+
+```
+# grep max_log_file /etc/audit/auditd.conf
+
+max_log_file = 
+```",,"The max_log_file parameter is measured in megabytes.
+
+Other methods of log rotation may be appropriate based on site policy. One example is time-based rotation strategies which don't have native support in auditd configurations. Manual audit of custom configurations should be evaluated for effectiveness and completeness.",TITLE:Ensure adequate storage for logs CONTROL:v7 6.4 DESCRIPTION:Ensure that all systems that store logs have adequate storage space for the logs generated.;,,,,,,,,,,,
+4.1.2,4.1.2.2,Ensure audit logs are not automatically deleted,published,full,The `max_log_file_action` setting determines how to handle the audit log file reaching the max file size. A value of `keep_logs` will rotate the logs but never delete old logs.,"In high security contexts, the benefits of maintaining a long audit history exceed the cost of storing the audit history.","Set the following parameter in `/etc/audit/auditd.conf:` 
+
+```
+max_log_file_action = keep_logs
+```","Run the following command and verify output matches:
+
+```
+# grep max_log_file_action /etc/audit/auditd.conf
+
+max_log_file_action = keep_logs
+```",,,TITLE:Ensure adequate storage for logs CONTROL:v7 6.4 DESCRIPTION:Ensure that all systems that store logs have adequate storage space for the logs generated.;,,,,,,,,,,,
+4.1.2,4.1.2.3,Ensure system is disabled when audit logs are full,published,full,The `auditd` daemon can be configured to halt the system when the audit logs are full.,"In high security contexts, the risk of detecting unauthorized access or nonrepudiation exceeds the benefit of the system's availability.","Set the following parameters in `/etc/audit/auditd.conf:` 
+
+```
+space_left_action = email
+action_mail_acct = root
+admin_space_left_action = halt
+```","Run the following commands and verify output matches:
+
+```
+# grep space_left_action /etc/audit/auditd.conf
+
+space_left_action = email
+```
+
+```
+# grep action_mail_acct /etc/audit/auditd.conf
+
+action_mail_acct = root
+```
+
+```
+# grep admin_space_left_action /etc/audit/auditd.conf
+
+admin_space_left_action = halt
+```",,,TITLE:Ensure adequate storage for logs CONTROL:v7 6.4 DESCRIPTION:Ensure that all systems that store logs have adequate storage space for the logs generated.;,,,,,,,,,,,
+4.1,4.1.3,Ensure events that modify date and time information are collected,published,full,"Capture events where the system date and/or time has been modified. The parameters in this section are set to determine if the `adjtimex` (tune kernel clock), `settimeofday` (Set time, using timeval and timezone structures) `stime` (using seconds since 1/1/1970) or `clock_settime` (allows for the setting of several internal clocks and timers) system calls have been executed and always write an audit record to the `/var/log/audit.log` file upon exit, tagging the records with the identifier ""time-change""",Unexpected changes in system date and/or time could be a sign of malicious activity on the system.,"For 32 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/time-change.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+-a always,exit -F arch=b32 -S clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+```
+
+For 64 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/time-change.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
+-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+-a always,exit -F arch=b64 -S clock_settime -k time-change
+-a always,exit -F arch=b32 -S clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+```","On a 32 bit system run the following commands:
+
+```
+# grep time-change /etc/audit/rules.d/*.rules
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+-a always,exit -F arch=b32 -S clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+```
+
+```
+# auditctl -l | grep time-change
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b32 -S stime,settimeofday,adjtimex -F key=time-change
+-a always,exit -F arch=b32 -S clock_settime -F key=time-change
+-w /etc/localtime -p wa -k time-change
+```
+
+On a 64 bit system run the following commands:
+
+```
+# grep time-change /etc/audit/rules.d/*.rules
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
+-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+-a always,exit -F arch=b64 -S clock_settime -k time-change
+-a always,exit -F arch=b32 -S clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+```
+
+```
+# auditctl -l | grep time-change
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b64 -S adjtimex,settimeofday -F key=time-change
+-a always,exit -F arch=b32 -S stime,settimeofday,adjtimex -F key=time-change
+-a always,exit -F arch=b64 -S clock_settime -F key=time-change
+-a always,exit -F arch=b32 -S clock_settime -F key=time-change
+-w /etc/localtime -p wa -k time-change
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Implement Automated Configuration Monitoring Systems CONTROL:v7 5.5 DESCRIPTION:Utilize a Security Content Automation Protocol (SCAP) compliant configuration monitoring system to verify all security configuration elements, catalog approved exceptions, and alert when unauthorized changes occur.;",,,,,,,,,,,
+4.1,4.1.4,Ensure events that modify user/group information are collected,published,full,"Record events affecting the `group` , `passwd` (user IDs), `shadow` and `gshadow` (passwords) or `/etc/security/opasswd` (old passwords, based on remember parameter in the PAM configuration) files. The parameters in this section will watch the files to see if they have been opened for write or have had attribute changes (e.g. permissions) and tag them with the identifier ""identity"" in the audit log file.",Unexpected changes to these files could be an indication that the system has been compromised and that an unauthorized user is attempting to hide their activities or compromise additional accounts.,"Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/identity.rules`
+
+and add the following lines:
+
+```
+-w /etc/group -p wa -k identity
+-w /etc/passwd -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/security/opasswd -p wa -k identity
+```","Run the following commands:
+
+```
+# grep identity /etc/audit/rules.d/*.rules
+```
+
+Verify the output matches:
+
+```
+-w /etc/group -p wa -k identity
+-w /etc/passwd -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/security/opasswd -p wa -k identity
+```
+
+```
+# auditctl -l | grep identity
+```
+
+Verify the output matches:
+
+```
+-w /etc/group -p wa -k identity
+-w /etc/passwd -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/security/opasswd -p wa -k identity
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.",TITLE:Log and Alert on Changes to Administrative Group Membership CONTROL:v7 4.8 DESCRIPTION:Configure systems to issue a log entry and alert when an account is added to or removed from any group assigned administrative privileges.;,,,,,,,,,,,
+4.1,4.1.5,Ensure events that modify the system's network environment are collected,published,full,"Record changes to network environment files or system calls. The below parameters monitor the sethostname (set the systems host name) or setdomainname (set the systems domainname) system calls, and write an audit event on system call exit. The other parameters monitor the `/etc/issue` and `/etc/issue.net` files (messages displayed pre-login), `/etc/hosts` (file containing host names and associated IP addresses) and `/etc/network` (directory containing network interface scripts and configurations) files.","Monitoring `sethostname` and `setdomainname` will identify potential unauthorized changes to host and domainname of a system. The changing of these names could potentially break security parameters that are set based on those names. The `/etc/hosts` file is monitored for changes in the file that can indicate an unauthorized intruder is trying to change machine associations with IP addresses and trick users and processes into connecting to unintended machines. Monitoring `/etc/issue` and `/etc/issue.net` is important, as intruders could put disinformation into those files and trick users into providing information to the intruder. Monitoring `/etc/network` is important as it can show if network interfaces or scripts are being modified in a way that can lead to the machine becoming unavailable or compromised. All audit records will be tagged with the identifier ""system-locale.""","For 32 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/system-locale.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+```
+
+For 64 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/system-locale.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale
+-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+```","On a 32 bit system run the following commands:
+
+```
+# grep system-locale /etc/audit/rules.d/*.rules
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+```
+
+```
+# auditctl -l | grep system-locale
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b32 -S sethostname,setdomainname -F key=system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+```
+
+On a 64 bit system run the following commands:
+
+```
+# grep system-locale /etc/audit/rules.d/*.rules
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale
+-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+```
+
+```
+# auditctl -l | grep system-locale
+```
+
+Verify the output matches:
+
+```
+-a always,exit -F arch=b64 -S sethostname,setdomainname -F key=system-locale
+-a always,exit -F arch=b32 -S sethostname,setdomainname -F key=system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Implement Automated Configuration Monitoring Systems CONTROL:v7 5.5 DESCRIPTION:Utilize a Security Content Automation Protocol (SCAP) compliant configuration monitoring system to verify all security configuration elements, catalog approved exceptions, and alert when unauthorized changes occur.;",,,,,,,,,,,
+4.1,4.1.6,Ensure events that modify the system's Mandatory Access Controls are collected,published,full,"Monitor AppArmor mandatory access controls. The parameters below monitor any write access (potential additional, deletion or modification of files in the directory) or attribute changes to `/etc/apparmor` and `/etc/apparmor.d` directories.","Changes to files in these directories could indicate that an unauthorized user is attempting to modify access controls and change security contexts, leading to a compromise of the system.","Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/MAC-policy.rules`
+
+and add the following lines:
+
+```
+-w /etc/apparmor/ -p wa -k MAC-policy
+-w /etc/apparmor.d/ -p wa -k MAC-policy
+```","run the following commands:
+
+```
+# grep MAC-policy /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-w /etc/apparmor/ -p wa -k MAC-policy
+-w /etc/apparmor.d/ -p wa -k MAC-policy
+```
+
+```
+# auditctl -l | grep MAC-policy
+```
+
+Verify output matches:
+
+```
+-w /etc/apparmor/ -p wa -k MAC-policy
+-w /etc/apparmor.d/ -p wa -k MAC-policy
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Implement Automated Configuration Monitoring Systems CONTROL:v7 5.5 DESCRIPTION:Utilize a Security Content Automation Protocol (SCAP) compliant configuration monitoring system to verify all security configuration elements, catalog approved exceptions, and alert when unauthorized changes occur.;",,,,,,,,,,,
+4.1,4.1.7,Ensure login and logout events are collected,published,full,Monitor login and logout events. The parameters below track changes to files associated with login/logout events. The file `/var/log/faillog` tracks failed events from login. The file `/var/log/lastlog` maintain records of the last time a user successfully logged in. The file `/var/log/tallylog` maintains records of failures via the `pam_tally2` module,Monitoring login/logout events could provide a system administrator with information associated with brute force attacks against user logins.,"Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/logins.rules`
+
+and add the following lines:
+
+```
+-w /var/log/faillog -p wa -k logins
+-w /var/log/lastlog -p wa -k logins
+-w /var/log/tallylog -p wa -k logins
+```","Run the following commands:
+
+```
+# grep logins /etc/audit/rules.d/*.rules
+```
+
+Verify output includes:
+
+```
+-w /var/log/faillog -p wa -k logins
+-w /var/log/lastlog -p wa -k logins
+-w /var/log/tallylog -p wa -k logins
+```
+
+```
+# auditctl -l | grep logins
+```
+
+Verify output includes:
+
+```
+-w /var/log/faillog -p wa -k logins
+-w /var/log/lastlog -p wa -k logins
+-w /var/log/tallylog -p wa -k logins
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Log and Alert on Unsuccessful Administrative Account Login CONTROL:v7 4.9 DESCRIPTION:Configure systems to issue a log entry and alert on unsuccessful logins to an administrative account.;TITLE:Lock Workstation Sessions After Inactivity CONTROL:v7 16.11 DESCRIPTION:Automatically lock workstation sessions after a standard period of inactivity.;TITLE:Alert on Account Login Behavior Deviation CONTROL:v7 16.13 DESCRIPTION:Alert when users deviate from normal login behavior, such as time-of-day, workstation location and duration.;",,,,,,,,,,,
+4.1,4.1.8,Ensure session initiation information is collected,published,full,"Monitor session initiation events. The parameters in this section track changes to the files associated with session events. The file `/var/run/utmp` tracks all currently logged in users. All audit records will be tagged with the identifier ""session."" The `/var/log/wtmp` file tracks logins, logouts, shutdown, and reboot events. The file `/var/log/btmp` keeps track of failed login attempts and can be read by entering the command `/usr/bin/last -f /var/log/btmp` . All audit records will be tagged with the identifier ""logins.""","Monitoring these files for changes could alert a system administrator to logins occurring at unusual hours, which could indicate intruder activity (i.e. a user logging in at a time when they do not normally log in).","Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/session.rules`
+
+and add the following lines:
+
+```
+-w /var/run/utmp -p wa -k session
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins
+```","Run the following commands:
+
+```
+# grep -E '(session|logins)' /etc/audit/rules.d/*.rules
+```
+
+Verify output includes:
+
+```
+-w /var/run/utmp -p wa -k session
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins
+```
+
+```
+# auditctl -l | grep -E '(session|logins)'
+```
+
+Verify output includes:
+
+```
+-w /var/run/utmp -p wa -k session
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins
+```",,"The `last` command can be used to read `/var/log/wtmp` (`last` with no parameters) and `/var/run/utmp` (`last -f /var/run/utmp`)
+
+Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Log and Alert on Unsuccessful Administrative Account Login CONTROL:v7 4.9 DESCRIPTION:Configure systems to issue a log entry and alert on unsuccessful logins to an administrative account.;TITLE:Lock Workstation Sessions After Inactivity CONTROL:v7 16.11 DESCRIPTION:Automatically lock workstation sessions after a standard period of inactivity.;TITLE:Alert on Account Login Behavior Deviation CONTROL:v7 16.13 DESCRIPTION:Alert when users deviate from normal login behavior, such as time-of-day, workstation location and duration.;",,,,,,,,,,,
+4.1,4.1.9,Ensure discretionary access control permission modification events are collected,published,full,"Monitor changes to file permissions, attributes, ownership and group. The parameters in this section track changes for system calls that affect file permissions and attributes. The `chmod` , `fchmod` and `fchmodat` system calls affect the permissions associated with a file. The `chown` , `fchown` , `fchownat` and `lchown` system calls affect owner and group attributes on a file. The `setxattr` , `lsetxattr` , `fsetxattr` (set extended file attributes) and `removexattr` , `lremovexattr` , `fremovexattr` (remove extended file attributes) control extended file attributes. In all cases, an audit record will only be written for non-system user ids (auid >= 1000) and will ignore Daemon events (auid = 4294967295). All audit records will be tagged with the identifier ""perm_mod.""
+
+**Note:** Systems may have been customized to change the default UID_MIN. To confirm the UID_MIN for your system, run the following command:
+
+```
+awk '/^\s*UID_MIN/{print $2}' /etc/login.defs
+```
+
+If your systems' UID_MIN is not `1000`, replace `audit>=1000` with `audit>=` in the Audit and Remediation procedures.",Monitoring for changes in file attributes could alert a system administrator to activity that could indicate intruder activity or policy violation.,"For 32 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/perm_mod.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+```
+
+For 64 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/perm_mod.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+```","On a 32 bit system run the following commands:
+
+```
+# grep perm_mod /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+```
+
+```
+# auditctl -l | grep perm_mod
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=-1 -F key=perm_mod
+-a always,exit -F arch=b32 -S lchown,fchown,chown,fchownat -F auid>=1000 -F auid!=-1 -F key=perm_mod
+-a always,exit -F arch=b32 -S setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr -F auid>=1000 -F auid!=-1 -F key=perm_mod
+```
+
+On a 64 bit system run the following commands:
+
+```
+# grep perm_mod /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+```
+
+```
+# auditctl -l | grep auditctl -l | grep perm_mod
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=-1 -F key=perm_mod
+-a always,exit -F arch=b32 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=-1 -F key=perm_mod
+-a always,exit -F arch=b64 -S chown,fchown,lchown,fchownat -F auid>=1000 -F auid!=-1 -F key=perm_mod
+-a always,exit -F arch=b32 -S lchown,fchown,chown,fchownat -F auid>=1000 -F auid!=-1 -F key=perm_mod
+-a always,exit -F arch=b64 -S setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr -F auid>=1000 -F auid!=-1 -F key=perm_mod
+-a always,exit -F arch=b32 -S setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr -F auid>=1000 -F auid!=-1 -F key=perm_mod
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Implement Automated Configuration Monitoring Systems CONTROL:v7 5.5 DESCRIPTION:Utilize a Security Content Automation Protocol (SCAP) compliant configuration monitoring system to verify all security configuration elements, catalog approved exceptions, and alert when unauthorized changes occur.;",,,,,,,,,,,
+4.1,4.1.10,Ensure unsuccessful unauthorized file access attempts are collected,published,full,"Monitor for unsuccessful attempts to access files. The parameters below are associated with system calls that control creation ( `creat` ), opening ( `open` , `openat` ) and truncation ( `truncate` , `ftruncate` ) of files. An audit log record will only be written if the user is a non-privileged user (auid > = 1000), is not a Daemon event (auid=4294967295) and if the system call returned EACCES (permission denied to the file) or EPERM (some other permanent error associated with the specific system call). All audit records will be tagged with the identifier ""access.""
+
+**Note:** Systems may have been customized to change the default UID_MIN. To confirm the UID_MIN for your system, run the following command:
+
+```
+# awk '/^\s*UID_MIN/{print $2}' /etc/login.defs
+```
+
+If your systems' UID_MIN is not 1000, replace audit>=1000 with audit>= in the Audit and Remediation procedures.","Failed attempts to open, create or truncate files could be an indication that an individual or process is trying to gain unauthorized access to the system.","For 32 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/audit.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+```
+
+For 64 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/access.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+```","On a 32 bit system run the following commands:
+
+```
+# grep access /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+```
+
+```
+# auditctl -l | grep access
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S open,creat,truncate,ftruncate,openat -F exit=-EACCES -F auid>=1000 -F auid!=-1 -F key=access
+-a always,exit -F arch=b32 -S open,creat,truncate,ftruncate,openat -F exit=-EPERM -F auid>=1000 -F auid!=-1 -F key=access
+```
+
+On a 64 bit system run the following commands:
+
+```
+# grep access /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+```
+
+```
+# auditctl -l | grep access
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S open,truncate,ftruncate,creat,openat -F exit=-EACCES -F auid>=1000 -F auid!=-1 -F key=access
+-a always,exit -F arch=b32 -S open,creat,truncate,ftruncate,openat -F exit=-EACCES -F auid>=1000 -F auid!=-1 -F key=access
+-a always,exit -F arch=b64 -S open,truncate,ftruncate,creat,openat -F exit=-EPERM -F auid>=1000 -F auid!=-1 -F key=access
+-a always,exit -F arch=b32 -S open,creat,truncate,ftruncate,openat -F exit=-EPERM -F auid>=1000 -F auid!=-1 -F key=access
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.",TITLE:Enforce Detail Logging for Access or Changes to Sensitive Data CONTROL:v7 14.9 DESCRIPTION:Enforce detailed audit logging for access to sensitive data or changes to sensitive data (utilizing tools such as File Integrity Monitoring or Security Information and Event Monitoring).;,,,,,,,,,,,
+4.1,4.1.11,Ensure use of privileged commands is collected,published,full,"Monitor privileged programs (those that have the setuid and/or setgid bit set on execution) to determine if unprivileged users are running these commands.
+
+**Note:** Systems may have been customized to change the default UID_MIN. To confirm the UID_MIN for your system, run the following command:
+
+```
+# awk '/^\s*UID_MIN/{print $2}' /etc/login.defs
+```
+
+If your systems' UID_MIN is not 1000, replace audit>=1000 with audit>= in the Audit and Remediation procedures.",Execution of privileged commands by non-privileged users could be an indication of someone trying to gain unauthorized access to the system.,"To remediate this issue, the system administrator will have to execute a find command to locate all the privileged programs and then add an audit line for each one of them. The audit parameters associated with this are as follows:
+ `-F path="" $1 ""` - will populate each file name found through the find command and processed by awk. `-F perm=x` - will write an audit record if the file is executed. `-F auid>=1000` - will write a record if the user executing the command is not a privileged user. `-F auid!= 4294967295` - will ignore Daemon events
+
+All audit records should be tagged with the identifier ""privileged"".
+
+Run the following command replacing _
+
+	_ with a list of partitions where programs can be executed from on your system:
+
+```
+# find 
+
+	 -xdev \( -perm -4000 -o -perm -2000 \) -type f | awk '{print \
+""-a always,exit -F path="" $1 "" -F perm=x -F auid>=1000 -F auid!=4294967295 \
+-k privileged"" }'
+```
+
+Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/privileged.rules`
+
+And add all resulting lines to the file.","Run the following command replacing `
+
+	` with a list of partitions where programs can be executed from on your system:
+
+```
+# find 
+
+	 -xdev \( -perm -4000 -o -perm -2000 \) -type f | awk '{print \
+""-a always,exit -F path="" $1 "" -F perm=x -F auid>=1000 -F auid!=4294967295 \
+-k privileged"" }'
+```
+
+Verify all resulting lines are a `.rules` file in `/etc/audit/rules.d/` and the output of `auditctl -l`.
+
+NOTE: The `.rules` file output will be `auid!=-1` not `auid!=4294967295`",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Establish Secure Configurations CONTROL:v7 5.1 DESCRIPTION:Maintain documented, standard security configuration standards for all authorized operating systems and software.;",,,,,,,,,,,
+4.1,4.1.12,Ensure successful file system mounts are collected,published,full,"Monitor the use of the `mount` system call. The `mount` (and `umount` ) system call controls the mounting and unmounting of file systems. The parameters below configure the system to create an audit record when the mount system call is used by a non-privileged user
+
+**Note:** Systems may have been customized to change the default UID_MIN. To confirm the UID_MIN for your system, run the following command:
+
+```
+# awk '/^\s*UID_MIN/{print $2}' /etc/login.defs
+```
+
+If your systems' UID_MIN is not 1000, replace audit>=1000 with audit>= in the Audit and Remediation procedures.","It is highly unusual for a non privileged user to `mount` file systems to the system. While tracking `mount` commands gives the system administrator evidence that external media may have been mounted (based on a review of the source of the mount and confirming it's an external media type), it does not conclusively indicate that data was exported to the media. System administrators who wish to determine if data were exported, would also have to track successful `open` , `creat` and `truncate` system calls requiring write access to a file under the mount point of the external media file system. This could give a fair indication that a write occurred. The only way to truly prove it, would be to track successful writes to the external media. Tracking write system calls could quickly fill up the audit log and is not recommended. Recommendations on configuration options to track data export to media is beyond the scope of this document.","For 32 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/audit.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+```
+
+For 64 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/mounts.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+```","On a 32 bit system run the following commands:
+
+```
+# grep mounts /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+```
+
+```
+# auditctl -l | grep mounts
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=-1 -F key=mounts
+```
+
+On a 64 bit system run the following commands:
+
+```
+# grep mounts /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+```
+
+```
+# auditctl -l | grep mounts
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=-1 -F key=mounts
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=-1 -F key=mounts
+```",,"This tracks successful and unsuccessful mount commands. File system mounts do not have to come from external media and this action still does not verify write (e.g. CD ROMS).
+
+Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Establish Secure Configurations CONTROL:v7 5.1 DESCRIPTION:Maintain documented, standard security configuration standards for all authorized operating systems and software.;",,,,,,,,,,,
+4.1,4.1.13,Ensure file deletion events by users are collected,published,full,"Monitor the use of system calls associated with the deletion or renaming of files and file attributes. This configuration statement sets up monitoring for the `unlink` (remove a file), `unlinkat` (remove a file attribute), `rename` (rename a file) and `renameat` (rename a file attribute) system calls and tags them with the identifier ""delete"".
+
+**Note:** Systems may have been customized to change the default UID_MIN. To confirm the UID_MIN for your system, run the following command:
+
+```
+# awk '/^\s*UID_MIN/{print $2}' /etc/login.defs
+```
+
+If your systems' UID_MIN is not 1000, replace audit>=1000 with audit>= in the Audit and Remediation procedures.","Monitoring these calls from non-privileged users could provide a system administrator with evidence that inappropriate removal of files and file attributes associated with protected files is occurring. While this audit option will look at all events, system administrators will want to look for specific privileged files that are being deleted or altered.","For 32 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/audit.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+```
+
+For 64 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/delete.rules`
+
+and add the following lines:
+
+```
+-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+```","On a 32 bit system run the following commands:
+
+```
+# grep delete /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+```
+
+```
+# auditctl -l | grep delete
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b32 -S unlink,rename,unlinkat,renameat -F auid>=1000 -F auid!=-1 -F key=delete
+```
+
+On a 64 bit system run the following commands:
+
+```
+# grep delete /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+```
+
+```
+# auditctl -l | grep delete
+```
+
+Verify output matches:
+
+```
+-a always,exit -F arch=b64 -S rename,unlink,unlinkat,renameat -F auid>=5100 -F auid!=-1 -F key=delete
+-a always,exit -F arch=b32 -S unlink,rename,unlinkat,renameat -F auid>=1000 -F auid!=-1 -F key=delete
+```",,"At a minimum, configure the audit system to collect file deletion events for all users and root.
+
+Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.",TITLE:Data Protection CONTROL:v7 13 DESCRIPTION:Data Protection;,,,,,,,,,,,
+4.1,4.1.14,Ensure changes to system administration scope (sudoers) is collected,published,full,"Monitor scope changes for system administrations. If the system has been properly configured to force system administrators to log in as themselves first and then use the `sudo` command to execute privileged commands, it is possible to monitor changes in scope. The file `/etc/sudoers` will be written to when the file or its attributes have changed. The audit records will be tagged with the identifier ""scope.""",Changes in the `/etc/sudoers` file can indicate that an unauthorized change has been made to scope of system administrator activity.,"Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/scope.rules`
+
+and add the following lines:
+
+```
+-w /etc/sudoers -p wa -k scope
+-w /etc/sudoers.d/ -p wa -k scope
+```","Run the following commands:
+
+```
+# grep scope /etc/audit/rules.d/*.rules
+
+# auditctl -l | grep scope
+```
+
+Verify output of both matches:
+
+```
+-w /etc/sudoers -p wa -k scope
+-w /etc/sudoers.d/ -p wa -k scope
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.",TITLE:Log and Alert on Changes to Administrative Group Membership CONTROL:v7 4.8 DESCRIPTION:Configure systems to issue a log entry and alert when an account is added to or removed from any group assigned administrative privileges.;,,,,,,,,,,,
+4.1,4.1.15,Ensure system administrator actions (sudolog) are collected,published,full,"Monitor the `sudo` log file. If the system has been properly configured to disable the use of the `su` command and force all administrators to have to log in first and then use `sudo` to execute privileged commands, then all administrator commands will be logged to `/var/log/sudo.log` . Any time a command is executed, an audit event will be triggered as the `/var/log/sudo.log` file will be opened for write and the executed administration command will be written to the log.",Changes in `/var/log/sudo.log` indicate that an administrator has executed a command or the log file itself has been tampered with. Administrators will want to correlate the events written to the audit trail with the records written to `/var/log/sudo.log` to verify if unauthorized commands have been executed.,"Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules` and add the following line:
+
+```
+-w 
+
+	 -p wa -k actions
+```
+
+Example: `vi /etc/audit/rules.d/actions.rules`
+
+and add the following line:
+
+```
+-w /var/log/sudo.log -p wa -k actions
+```","Run the following commands:
+
+```
+# grep -E ""^\s*-w\s+$(grep -r logfile /etc/sudoers* | sed -e 's/.*logfile=//;s/,? .*//')\s+-p\s+wa\s+-k\s+actions"" /etc/audit/rules.d/*.rules
+
+# auditctl -l | grep actions
+```
+
+Verify output of both matches the output of the following command, and the the output includes a file path
+
+```
+echo ""-w $(grep -r logfile /etc/sudoers* | sed -e 's/.*logfile=//;s/,? .*//') -p wa -k actions""
+```
+
+**Example Output**
+
+```
+-w /var/log/sudo.log -p wa -k actions
+```",,"The system must be configured with `su` disabled (See Item 5.6 Ensure access to the su command is restricted) to force all command execution through `sudo`. This will not be effective on the console, as administrators can log in as root.
+
+Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.",TITLE:Log and Alert on Unsuccessful Administrative Account Login CONTROL:v7 4.9 DESCRIPTION:Configure systems to issue a log entry and alert on unsuccessful logins to an administrative account.;,,,,,,,,,,,
+4.1,4.1.16,Ensure kernel module loading and unloading is collected,published,full,"Monitor the loading and unloading of kernel modules. The programs `insmod` (install a kernel module), `rmmod` (remove a kernel module), and `modprobe` (a more sophisticated program to load and unload modules, as well as some other features) control loading and unloading of modules. The `init_module` (load a module) and `delete_module` (delete a module) system calls control loading and unloading of modules. Any execution of the loading and unloading module programs and system calls will trigger an audit record with an identifier of ""modules"".","Monitoring the use of `insmod` , `rmmod` and `modprobe` could provide system administrators with evidence that an unauthorized user loaded or unloaded a kernel module, possibly compromising the security of the system. Monitoring of the `init_module` and `delete_module` system calls would reflect an unauthorized user attempting to use a different program to load and unload modules.","For 32 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/modules.rules`
+
+and add the following lines:
+```
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b32 -S init_module -S delete_module -k modules
+```
+
+For 64 bit systems Edit or create a file in the `/etc/audit/rules.d/` directory ending in `.rules`
+
+Example: `vi /etc/audit/rules.d/modules.rules`
+
+and add the following lines:
+
+```
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b64 -S init_module -S delete_module -k modules
+```","On a 32 bit system run the following commands:
+
+```
+# grep modules /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b32 -S init_module -S delete_module -k modules
+```
+
+```
+# auditctl -l | grep modules
+```
+
+Verify output matches:
+
+```
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b32 -S init_module,delete_module -F key=modules
+```
+
+On a 64 bit system run the following commands:
+
+```
+# grep modules /etc/audit/rules.d/*.rules
+```
+
+Verify output matches:
+
+```
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b64 -S init_module -S delete_module -k modules
+```
+
+```
+# auditctl -l | grep modules
+```
+
+Verify output matches:
+
+```
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b64 -S init_module,delete_module -F key=modules
+```",,"Reloading the auditd config to set active settings requires the auditd service to be restarted, and may require a system reboot.","TITLE:Establish Secure Configurations CONTROL:v7 5.1 DESCRIPTION:Maintain documented, standard security configuration standards for all authorized operating systems and software.;",,,,,,,,,,,
+4.1,4.1.17,Ensure the audit configuration is immutable,published,full,"Set system audit so that audit rules cannot be modified with `auditctl` . Setting the flag ""-e 2"" forces audit to be put in immutable mode. Audit changes can only be made on system reboot.","In immutable mode, unauthorized users cannot execute changes to the audit system to potentially hide malicious activity and then put the audit rules back. Users would most likely notice a system reboot and that could alert administrators of an attempt to make unauthorized audit changes.","Edit or create the file `/etc/audit/rules.d/99-finalize.rules` and add the line
+
+```
+-e 2
+```
+
+at the end of the file","Run the following command and verify output matches:
+
+```
+# grep ""^\s*[^#]"" /etc/audit/audit.rules | tail -1
+
+-e 2
+```",,This setting will ensure reloading the auditd config to set active settings requires a system reboot.,"TITLE:Activate audit logging CONTROL:v7 6.2 DESCRIPTION:Ensure that local logging has been enabled on all systems and networking devices.;TITLE:Enable Detailed Logging CONTROL:v7 6.3 DESCRIPTION:Enable system logging to include detailed information such as an event source, date, user, timestamp, source addresses, destination addresses, and other useful elements.;",,,,,,,,,,,
+4.2,,Configure Logging,published,,Logging services should be configured to prevent information leaks and to aggregate logs on a remote server so that they can be reviewed in the event of a system compromise and ease log analysis.,,,,,,,,,,,,,,,,,
+4.2.1,,Configure rsyslog,published,,"The `rsyslog` software is recommended as a replacement for the` syslogd` daemon and provides improvements over `syslogd`, such as connection-oriented (i.e. TCP) transmission of logs, the option to log to database formats, and the encryption of log data en route to a central logging server. **Note:** This section only applies if `rsyslog` is installed on the system.",,,,,,,,,,,,,,,,,
+4.2.2,,Configure journald,published,,"systemd-journald is a system service that collects and stores logging data. It creates and maintains structured, indexed journals based on logging information that is received from a variety of sources: Kernel log messages, via kmsg
+
+Any changes made to the systemd-journald configuration will require a re-start of systemd-journald",,,,,,,,,,,,,,,,,
+5,,"Access, Authentication and Authorization",published,,,,,,,,,,,,,,,,,,,
+5.1,,Configure cron,published,,,,,,,,,,,,,,,,,,,
+5.2,,SSH Server Configuration,published,,"SSH is a secure, encrypted replacement for common login services such as `telnet`, `ftp`, `rlogin`, `rsh`, and `rcp`. It is strongly recommended that sites abandon older clear-text login protocols and use SSH to prevent session hijacking and sniffing of sensitive data off the network.
+
+**Note:** The recommendations in this section only apply if the SSH daemon is installed on the system, if remote access is **not** required the SSH daemon can be removed and this section skipped.
+
+Command to remove the SSH daemon:
+
+```
+# apt purge openssh-server
+```
+
+**Note:** Once all configuration changes have been made to `/etc/ssh/sshd_config`, the sshd configuration must be reloaded:
+
+Command to re-load the SSH daemon configuration:
+
+```
+# systemctl reload sshd
+```",,,,,,,,,,,,,,,,,
+5.2,5.2.6,Ensure SSH X11 forwarding is disabled,published,full,The X11Forwarding parameter provides the ability to tunnel X11 traffic through the connection to enable remote graphic connections.,"Disable X11 forwarding unless there is an operational requirement to use X11 applications directly. There is a small risk that the remote X11 servers of users who are logged in via SSH with X11 forwarding could be compromised by other users on the X11 server. Note that even if X11 forwarding is disabled, users can always install their own forwarders.","Edit the `/etc/ssh/sshd_config` file to set the parameter as follows:
+
+```
+X11Forwarding no
+```","Run the following command and verify that output matches:
+
+```
+# sshd -T | grep x11forwarding
+
+X11Forwarding no
+```",,,"TITLE:Ensure Only Approved Ports, Protocols and Services Are Running CONTROL:v7 9.2 DESCRIPTION:Ensure that only network ports, protocols, and services listening on a system with validated business needs, are running on each system.;",,,,,,,,,,,
+5.2,5.2.21,Ensure SSH AllowTcpForwarding is disabled,published,full,"SSH port forwarding is a mechanism in SSH for tunneling application ports from the client to the server, or servers to clients. It can be used for adding encryption to legacy applications, going through firewalls, and some system administrators and IT professionals use it for opening backdoors into the internal network from their home machines","Leaving port forwarding enabled can expose the organization to security risks and back-doors. 
+
+SSH connections are protected with strong encryption. This makes their contents invisible to most deployed network monitoring and traffic filtering solutions. This invisibility carries considerable risk potential if it is used for malicious purposes such as data exfiltration. Cybercriminals or malware could exploit SSH to hide their unauthorized communications, or to exfiltrate stolen data from the target network","Edit the /etc/ssh/sshd_config file to set the parameter as follows:
+
+```
+AllowTcpForwarding no
+```","Run the following command and verify that output matches:
+
+```
+# sshd -T | grep -i allowtcpforwarding
+
+AllowTcpForwarding no
+```","SSH tunnels are widely used in many corporate environments that employ mainframe systems as their application backends. In those environments the applications themselves may have very limited native support for security. By utilizing tunneling, compliance with SOX, HIPAA, PCI-DSS, and other standards can be achieved without having to modify the applications.",,"TITLE:Ensure Only Approved Ports, Protocols and Services Are Running CONTROL:v7 9.2 DESCRIPTION:Ensure that only network ports, protocols, and services listening on a system with validated business needs, are running on each system.;",,https://www.ssh.com/ssh/tunneling/example,,,,,,,,,
+5.3,,Configure PAM,published,,"PAM (Pluggable Authentication Modules) is a service that implements modular authentication modules on UNIX systems. PAM is implemented as a set of shared objects that are loaded and executed when a program needs to authenticate a user. Files for PAM are typically located in the `/etc/pam.d` directory. PAM must be carefully configured to secure system authentication. While this section covers some of PAM, please consult other PAM resources to fully understand the configuration capabilities.",,,,,,,,,,,,,,,,,
+5.4,,User Accounts and Environment,published,,This section provides guidance on setting up secure defaults for system and user accounts and their environment.,,,,,,,,,,,,,,,,,
+5.4.1,,Set Shadow Password Suite Parameters,published,,"While a majority of the password control parameters have been moved to PAM, some parameters are still available through the shadow password suite. Any changes made to `/etc/login.defs `will only be applied if the `usermod `command is used. If user IDs are added a different way, use the `chage `command to effect changes to individual user IDs.",,,,,,,,,,,,,,,,,
+6,,System Maintenance,published,,Recommendations in this section are intended as maintenance and are intended to be checked on a frequent basis to ensure system stability. Many recommendations do not have quick remediations and require investigation into the cause and best fix available and may indicate an attempted breach of system security.,,,,,,,,,,,,,,,,,
+6.1,,System File Permissions,published,,This section provides guidance on securing aspects of system files and directories.,,,,,,,,,,,,,,,,,
+6.1,6.1.1,Audit system file permissions,published,not_scored,"The Ubuntu package manager has a number of useful options. One of these, the `--verify` option, can be used to verify that system packages are correctly installed. The `--verify` option can be used to verify a particular package or to verify all system packages. If no output is returned, the package is installed correctly. The following table describes the meaning of output from the verify option:
+
+```
+Code Meaning
+S File size differs.
+M File mode differs (includes permissions and file type).
+5 The MD5 checksum differs.
+D The major and minor version numbers differ on a device file.
+L A mismatch occurs in a link.
+U The file ownership differs.
+G The file group owner differs.
+T The file time (mtime) differs.
+```
+
+The `dpkg -S` command can be used to determine which package a particular file belongs to. For example the following command determines which package the `/bin/bash` file belongs to:
+
+```
+# dpkg -S /bin/bash
+
+bash: /bin/bash
+```
+
+To verify the settings for the package that controls the `/bin/bash` file, run the following:
+
+```
+# dpkg --verify bash
+
+??5?????? c /etc/bash.bashrc
+```",It is important to confirm that packaged system files and directories are maintained with the permissions they were intended to have from the OS vendor.,Correct any discrepancies found and rerun the audit until output is clean or risk is mitigated or accepted.,"Run the following command to review all installed packages. Note that this may be very time consuming and may be best scheduled via the `cron` utility. It is recommended that the output of this command be redirected to a file that can be reviewed later.
+
+```
+# dpkg --verify 
+
+```",,"Since packages and important files may change with new updates and releases, it is recommended to verify everything, not just a finite list of files. This can be a time consuming task and results may depend on site policy therefore it is not a scorable benchmark item, but is provided for those interested in additional security measures.
+
+Some of the recommendations of this benchmark alter the state of files audited by this recommendation. The audit command will alert for all changes to a file permissions even if the new state is more secure than the default.","TITLE:Protect Information through Access Control Lists CONTROL:v7 14.6 DESCRIPTION:Protect all information stored on systems with file system, network share, claims, application, or database specific access control lists. These controls will enforce the principle that only authorized individuals should have access to the information based on their need to access the information as a part of their responsibilities.;",,,,,,,,,,,
+6.2,,User and Group Settings,published,,"This section provides guidance on securing aspects of the users and groups.
+
+**Note:** The recommendations in this section check local users and groups. Any users or groups from other sources such as LDAP will not be audited. In a domain environment similar checks should be performed against domain users and groups.",,,,,,,,,,,,,,,,,
